@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"cloud-utils/commands"
+	"github.com/igor-kupczynski/cloud-utils/commands"
 )
 
 func main() {

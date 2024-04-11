@@ -1,7 +1,7 @@
 package commands
 
 import (
-	"cloud-utils/commands/alb_log_to_json"
+	"github.com/igor-kupczynski/cloud-utils/commands/alb_log_to_json"
 
 	"github.com/spf13/cobra"
 )

@@ -1,4 +1,4 @@
-module cloud-utils
+module github.com/igor-kupczynski/cloud-utils
 
 go 1.22
 

@@ -6,25 +6,29 @@ A CLI for working with cloud services and tools.
 
 - Convert ALB access logs to JSON (`alb-log-to-json` command)
 
-## Installation
+## Install
 
-1. Clone the repository:
-
-```bash
-git clone https://github.com/igor-kupczynski/cloud-utils.git
-cd cloud-utils
-```
-
-2. Build the project:
-
-```bash
-make build
+```zsh
+go install github.com/igor-kupczynski/cloud-utils@latest
 ```
 
 ## Usage
 
 To use the `alb-log-to-json` command, pipe the ALB access log to the `cloud-utils` binary:
 
-```bash
+```zsh
 cat alb_access_log.txt | ./cloud-utils alb-log-to-json
+```
+
+## Build
+
+1. Clone the repository:
+```zsh
+git clone https://github.com/igor-kupczynski/cloud-utils.git
+cd cloud-utils
+```
+
+2. Build the project:
+```zsh
+make build
 ```
