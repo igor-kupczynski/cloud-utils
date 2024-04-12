@@ -120,7 +120,7 @@ var Cmd = &cobra.Command{
 			albLog.Classification = strings.Trim(albLog.Classification, "\"")
 			albLog.ClassificationReason = strings.Trim(albLog.ClassificationReason, "\"")
 
-			jsonData, err := json.MarshalIndent(albLog, "", "  ")
+			jsonData, err := json.Marshal(albLog)
 			if err != nil {
 				fmt.Println("Error:", err)
 				continue
