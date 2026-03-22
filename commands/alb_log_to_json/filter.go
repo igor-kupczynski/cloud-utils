@@ -17,6 +17,7 @@ type Filter struct {
 	TargetGroup  string
 	After        *time.Time
 	Before       *time.Time
+	AlbGenerated bool
 }
 
 // Matches returns true if the log entry passes all filter conditions.
@@ -25,6 +26,9 @@ func (f *Filter) Matches(log *ALBLog) bool {
 		return false
 	}
 	if f.TargetStatus != nil && !f.TargetStatus.matches(log.TargetStatusCode) {
+		return false
+	}
+	if f.AlbGenerated && log.TargetStatusCode != nil {
 		return false
 	}
 	if f.Domain != "" && !strings.Contains(log.DomainName, f.Domain) {

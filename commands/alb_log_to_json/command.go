@@ -24,6 +24,9 @@ var (
 	flagBefore       string
 	flagLimit        int
 	flagFields       string
+	flagAlbGenerated bool
+	flagCount        bool
+	flagGroupBy      string
 )
 
 var Cmd = &cobra.Command{
@@ -45,12 +48,23 @@ func init() {
 	Cmd.Flags().StringVar(&flagBefore, "before", "", "Filter entries at or before this time (RFC3339 or YYYY-MM-DD)")
 	Cmd.Flags().IntVar(&flagLimit, "limit", 0, "Maximum number of matching records to output (0 = unlimited)")
 	Cmd.Flags().StringVar(&flagFields, "fields", "", "Comma-separated list of fields to include in output")
+	Cmd.Flags().BoolVar(&flagAlbGenerated, "alb-generated", false, "Filter to ALB-generated errors (no target response)")
+	Cmd.Flags().BoolVar(&flagCount, "count", false, "Count matching records instead of outputting JSON")
+	Cmd.Flags().StringVar(&flagGroupBy, "group-by", "", "Group and count by field (from FieldRegistry)")
 }
 
 func runCmd(cmd *cobra.Command, args []string) error {
 	filter, err := buildFilter()
 	if err != nil {
 		return err
+	}
+
+	// Validate mutual exclusivity
+	if flagGroupBy != "" && flagCount {
+		return fmt.Errorf("--group-by and --count are mutually exclusive")
+	}
+	if flagGroupBy != "" && flagFields != "" {
+		return fmt.Errorf("--group-by and --fields are mutually exclusive")
 	}
 
 	var fields []string
@@ -67,21 +81,49 @@ func runCmd(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	encoder := json.NewEncoder(os.Stdout)
+	// Set up aggregator for --group-by
+	var aggregator *Aggregator
+	if flagGroupBy != "" {
+		if _, ok := FieldRegistry[flagGroupBy]; !ok {
+			return fmt.Errorf("unknown field for --group-by: %q", flagGroupBy)
+		}
+		aggregator = NewAggregator(flagGroupBy)
+	}
+
+	var encoder *json.Encoder
+	if !flagCount && aggregator == nil {
+		encoder = json.NewEncoder(os.Stdout)
+	}
+
 	count := 0
 
 	if len(args) == 0 {
-		return processReader(os.Stdin, encoder, filter, fields, &count)
-	}
-
-	for _, path := range args {
-		if err := processFile(path, encoder, filter, fields, &count); err != nil {
+		if err := processReader(os.Stdin, encoder, filter, fields, aggregator, &count); err != nil {
 			return err
 		}
-		if flagLimit > 0 && count >= flagLimit {
-			break
+	} else {
+		for _, path := range args {
+			if err := processFile(path, encoder, filter, fields, aggregator, &count); err != nil {
+				return err
+			}
+			if flagLimit > 0 && count >= flagLimit {
+				break
+			}
 		}
 	}
+
+	if flagCount {
+		fmt.Println(count)
+	}
+	if aggregator != nil {
+		enc := json.NewEncoder(os.Stdout)
+		for _, r := range aggregator.Results() {
+			if err := enc.Encode(r); err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -108,6 +150,7 @@ func buildFilter() (*Filter, error) {
 	f.Method = flagMethod
 	f.Path = flagPath
 	f.TargetGroup = flagTargetGroup
+	f.AlbGenerated = flagAlbGenerated
 
 	if flagAfter != "" {
 		t, err := parseTimeInput(flagAfter)
@@ -128,7 +171,7 @@ func buildFilter() (*Filter, error) {
 	return f, nil
 }
 
-func processFile(path string, encoder *json.Encoder, filter *Filter, fields []string, count *int) error {
+func processFile(path string, encoder *json.Encoder, filter *Filter, fields []string, aggregator *Aggregator, count *int) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("opening %s: %w", path, err)
@@ -145,10 +188,10 @@ func processFile(path string, encoder *json.Encoder, filter *Filter, fields []st
 		reader = gz
 	}
 
-	return processReader(reader, encoder, filter, fields, count)
+	return processReader(reader, encoder, filter, fields, aggregator, count)
 }
 
-func processReader(r io.Reader, encoder *json.Encoder, filter *Filter, fields []string, count *int) error {
+func processReader(r io.Reader, encoder *json.Encoder, filter *Filter, fields []string, aggregator *Aggregator, count *int) error {
 	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 0, 1024*1024), 1024*1024)
 
@@ -169,6 +212,14 @@ func processReader(r io.Reader, encoder *json.Encoder, filter *Filter, fields []
 		}
 
 		if !filter.Matches(log) {
+			continue
+		}
+
+		if flagCount || aggregator != nil {
+			if aggregator != nil {
+				aggregator.Add(log)
+			}
+			*count++
 			continue
 		}
 

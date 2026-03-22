@@ -155,6 +155,20 @@ func TestFilter_Combined(t *testing.T) {
 	}
 }
 
+func TestFilter_AlbGenerated(t *testing.T) {
+	f := &Filter{AlbGenerated: true}
+
+	code200 := 200
+	// No target response (nil TargetStatusCode) → ALB-generated, should match
+	if !f.Matches(&ALBLog{}) {
+		t.Error("expected nil TargetStatusCode to match --alb-generated")
+	}
+	// Has target response → not ALB-generated, should be filtered out
+	if f.Matches(&ALBLog{TargetStatusCode: &code200}) {
+		t.Error("expected non-nil TargetStatusCode to be rejected by --alb-generated")
+	}
+}
+
 func TestFilter_NoConditions(t *testing.T) {
 	f := &Filter{}
 	if !f.Matches(&ALBLog{}) {
