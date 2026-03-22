@@ -31,6 +31,15 @@ cloud-utils alb-log-to-json --after 2024-01-15 --before 2024-01-16 *.gz
 # Select specific fields to reduce output
 cloud-utils alb-log-to-json --fields time,elb_status_code,request_url,target_processing_time *.gz
 
+# Count matching records
+cloud-utils alb-log-to-json --elb-status 5xx --count *.gz
+
+# Group by a field (outputs JSON lines sorted by count descending)
+cloud-utils alb-log-to-json --elb-status 5xx --group-by target_group_arn *.gz
+
+# Filter to ALB-generated errors only (no target response)
+cloud-utils alb-log-to-json --elb-status 5xx --alb-generated *.gz
+
 # Combine with jq for further analysis (numeric types work natively)
 cloud-utils alb-log-to-json --elb-status 5xx --fields time,target_processing_time,request_url *.gz \
   | jq -s 'sort_by(.target_processing_time) | reverse | .[:10]'
